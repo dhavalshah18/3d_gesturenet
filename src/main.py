@@ -1,8 +1,8 @@
 import torch
 import torch.utils.data as data
-from src.data import GestureData
-from src.network import GestureNetFCN
-from src.solver import Solver
+from data import GestureData
+from network import GestureNetFCN
+from solver import Solver
 
 
 def main():
