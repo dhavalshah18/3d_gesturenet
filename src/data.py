@@ -54,11 +54,11 @@ class GestureData(data.Dataset):
             images = file.readlines()
 
         temp = np.array(PIL.Image.open(images[0].strip()))
-        tensor_size = (len(images), ) + (temp.shape[-1], ) + (temp.shape[0:-1])
+        tensor_size = (9, ) + (temp.shape[-1], ) + (temp.shape[0:-1])
 
         img_sequence = torch.empty(tensor_size, dtype=torch.float)
 
-        for i in range(len(images)):
+        for i in range(9):
             img = PIL.Image.open(images[i].strip())
             img_tensor = transforms.ToTensor()(img).to(dtype=torch.float)
             img_sequence[i] = img_tensor
