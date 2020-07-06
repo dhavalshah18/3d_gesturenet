@@ -64,7 +64,7 @@ class GestureData(data.Dataset):
             img_sequence[i] = img_tensor
 
         img_sequence = img_sequence.permute(1, 2, 3, 0)
-        label = torch.tensor(int(label))
+        label = int(label)
 
         if self.transform == "normalize":
             std, mean = torch.std_mean(img_sequence)
