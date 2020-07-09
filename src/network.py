@@ -2,13 +2,36 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.init as init
 import math
 
+def init_weights(net, init_type='normal', gain=0.02):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            if init_type == 'normal':
+                init.normal_(m.weight.data, 0.0, gain)
+            elif init_type == 'xavier':
+                init.xavier_normal_(m.weight.data, gain=gain)
+            elif init_type == 'kaiming':
+                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                init.orthogonal_(m.weight.data, gain=gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+            if hasattr(m, 'bias') and m.bias is not None:
+                init.constant_(m.bias.data, 0.0)
+        elif classname.find('BatchNorm3d') != -1:
+            init.normal_(m.weight.data, 1.0, gain)
+            init.constant_(m.bias.data, 0.0)
 
+    print('initialize network with %s' % init_type)
+    net.apply(init_func)
+    
 class GestureNetFCN(nn.Module):
     """INPUT - 3DCONV - 3DCONV - 3DCONV - 3DCONV - FCN """
 
-    def __init__(self, nchannels=3, nlabels=35, batchnorm=True, dropout=False):
+    def __init__(self, nchannels=3, nlabels=35):
         """
         Builds the network structure with the provided parameters
 
@@ -23,84 +46,33 @@ class GestureNetFCN(nn.Module):
 
         self.nchannels = nchannels
         self.nlabels = nlabels
-        self.batchnorm = batchnorm
-        self.dropout = dropout
-
-        # 3D Convolutional layers
-        self.conv1 = nn.Conv3d(in_channels=self.nchannels, out_channels=5, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv3d(in_channels=5, out_channels=10, kernel_size=5, padding=2)
-        self.conv3 = nn.Conv3d(in_channels=10, out_channels=20, kernel_size=5, padding=2)
-        self.conv4 = nn.Conv3d(in_channels=20, out_channels=50, kernel_size=3, padding=1)
-
-        # Fully Convolutional layer
-        self.fcn1 = nn.Conv3d(in_channels=50, out_channels=self.nlabels, kernel_size=1)
-
-        # Batch Normalisation
-        self.batchnorm1 = nn.BatchNorm3d(5)
-        self.batchnorm2 = nn.BatchNorm3d(10)
-        self.batchnorm3 = nn.BatchNorm3d(20)
-        self.batchnorm4 = nn.BatchNorm3d(50)
-
-        # Dropout
-        self.dropout1 = nn.Dropout(p=0.1)
-        self.dropout2 = nn.Dropout(p=0.2)
-        self.dropout3 = nn.Dropout(p=0.3)
-        self.dropout4 = nn.Dropout(p=0.4)
-
-        # Softmax layer
-        self.softmax = nn.Softmax(dim=1)
-
-        # Non-linearities
-        self.relu = nn.ReLU(inplace=True)
+                
+        self.conv = nn.Sequential(nn.Conv3d(in_channels=self.nchannels, out_channels=5, kernel_size=3, padding=1),
+                                  nn.BatchNorm3d(5),
+                                  nn.ReLU(inplace=True),
+                                  nn.Conv3d(in_channels=5, out_channels=10, kernel_size=5, padding=2),
+                                  nn.BatchNorm3d(10),
+                                  nn.ReLU(inplace=True),
+                                  nn.Conv3d(in_channels=10, out_channels=20, kernel_size=5, padding=2),
+                                  nn.BatchNorm3d(20),
+                                  nn.ReLU(inplace=True),
+                                  nn.Conv3d(in_channels=20, out_channels=50, kernel_size=3, padding=1),
+                                  nn.BatchNorm3d(50),
+                                  nn.ReLU(inplace=True),
+                               )
+        self.fcn = nn.Linear(10500000, nlabels)
+        
         self.sigmoid = nn.Sigmoid()
 
-        # Initialize weights
-        for m in self.modules():
-            if isinstance(m, nn.Conv3d):
-                # Find upper and lower bound based on kernel size of layer
-                lower = -1 / math.sqrt(m.kernel_size[0] * m.kernel_size[1] * m.kernel_size[2])
-                upper = 1 / math.sqrt(m.kernel_size[0] * m.kernel_size[1] * m.kernel_size[2])
-                # Uniformly initialize with upper and lower bounds
-                m.weight = nn.init.uniform_(m.weight, a=lower, b=upper)
-
-        for param in self.parameters():
-            param.requires_grad = True
+        
 
     def forward(self, x):
 
-        # 1st layer
-        x = self.conv1(x)
-        if self.batchnorm:
-            x = self.batchnorm1(x)
-        x = self.relu(x)
-        if self.dropout:
-            x = self.dropout1(x)
-
-        # 2nd layer
-        x = self.conv2(x)
-        if self.batchnorm:
-            x = self.batchnorm2(x)
-        x = self.relu(x)
-        if self.dropout:
-            x = self.dropout2(x)
-
-        # 3rd layer
-        x = self.conv3(x)
-        if self.batchnorm:
-            x = self.batchnorm3(x)
-        x = self.relu(x)
-        if self.dropout:
-            x = self.dropout3(x)
-
-        x = self.conv4(x)
-        #         x = self.batchnorm4(x)
-        x = self.relu(x)
-        #         x = self.dropout4(x)
-
-        x = self.fcn1(x)
-        x = self.sigmoid(x)
-
-        x = self.softmax(x)
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)        
+        x = self.fcn(x)
+#         x = self.sigmoid(x)
+        
         return x
 
     def save(self, path):
