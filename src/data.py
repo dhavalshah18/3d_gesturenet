@@ -12,14 +12,14 @@ class GestureData(data.Dataset):
     derived from pytorch's Dataset class.
     """
 
-    def __init__(self, root_path, transform="normalize", mode="train"):
+    def __init__(self, root_path, mode="", z=10):
         # Note: Should already be split into train, val and test folders
 
         self.root_dir = pathlib.Path(root_path)
 
         self.images_dir = self.root_dir.joinpath("images/")
-
-        self.transform = transform
+        
+        self.z = z
 
         # Read split .txt file
         split_file = self.root_dir.joinpath(mode+".txt")
@@ -52,23 +52,29 @@ class GestureData(data.Dataset):
 
         with open(seq_file, "r") as file:
             images = file.readlines()
-
-        temp = np.array(PIL.Image.open(images[0].strip()))
-        tensor_size = (9, ) + (temp.shape[-1], ) + (temp.shape[0:-1])
+        
+        temp = PIL.Image.open(images[0].strip())
+        temp = transforms.Resize(150)(temp)
+        temp = np.array(temp)
+        tensor_size = (self.z, ) + (temp.shape[-1], ) + (temp.shape[0:-1])
 
         img_sequence = torch.empty(tensor_size, dtype=torch.float)
 
-        for i in range(9):
+        for i in range(self.z):
             img = PIL.Image.open(images[i].strip())
-            img_tensor = transforms.ToTensor()(img).to(dtype=torch.float)
+            img = transforms.Resize(150)(img)
+            
+            img_tensor = transforms.ToTensor()(img)
+#             std, mean = torch.std_mean(img_tensor, dim=[1, 2])
+#             img_tensor = transforms.Normalize(mean, std)(img_tensor)
             img_sequence[i] = img_tensor
 
         img_sequence = img_sequence.permute(1, 2, 3, 0)
-        label = int(label)
-
-        if self.transform == "normalize":
-            std, mean = torch.std_mean(img_sequence)
-            normalize = ms.Normalize(mean, std)
-            img_sequence = normalize(img_sequence)
+        std, mean = torch.std_mean(img_sequence)
+        normalize = ms.Normalize(mean, std)
+        img_sequence = normalize(img_sequence)
+        # -1 for label as our labels are 1-35
+        # but we want 0-34
+        label = float(label) - 1.
 
         return img_sequence, label
