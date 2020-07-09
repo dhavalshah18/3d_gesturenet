@@ -6,19 +6,20 @@ import torch.nn as nn
 import torch.optim
 from torch.utils.tensorboard import SummaryWriter
 
+from network import init_weights
+
 
 class Solver(object):
     default_optim_args = {"lr": 0.01,
                           "weight_decay": 0.}
 
-    def __init__(self, optim=torch.optim.SGD, optim_args={},
-                 loss_func=nn.CrossEntropyLoss()):
+    def __init__(self, optim=torch.optim.SGD, optim_args={}):
 
         optim_args_merged = self.default_optim_args.copy()
         optim_args_merged.update(optim_args)
         self.optim_args = optim_args_merged
         self.optim = optim
-        self.loss_func = loss_func
+        self.loss_func = nn.CrossEntropyLoss()
         self.best_train_dice = -1
         self.best_val_dice = -1
         self.best_train_model = None
@@ -52,6 +53,7 @@ class Solver(object):
         optim = self.optim(model.parameters(), **self.optim_args)
         self._reset_histories()
         iter_per_epoch = len(train_loader)
+#         init_weights(model)
         model.train()
 
         print("START TRAIN")
@@ -66,6 +68,7 @@ class Solver(object):
                 optim.zero_grad()
 
                 outputs = model(inputs)
+#                 print("Out: ", outputs.size())
                 loss = self.loss_func(outputs, targets)
                 loss.backward()
                 optim.step()
@@ -81,6 +84,8 @@ class Solver(object):
                            train_loss))
 
             _, preds = torch.max(outputs, 1)
+            print("Preds: ", preds)
+            print("Targets: ", targets)
             train_acc = np.mean((preds == targets).detach().cpu().numpy())
             self.train_acc_history.append(train_acc)
 
