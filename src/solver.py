@@ -53,7 +53,7 @@ class Solver(object):
         optim = self.optim(model.parameters(), **self.optim_args)
         self._reset_histories()
         iter_per_epoch = len(train_loader)
-#         init_weights(model)
+        init_weights(model, "xavier")
         model.train()
 
         print("START TRAIN")
